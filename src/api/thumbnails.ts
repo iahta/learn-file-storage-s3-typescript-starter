@@ -4,6 +4,7 @@ import { getVideo, updateVideo } from "../db/videos";
 import type { ApiConfig } from "../config";
 import type { BunRequest } from "bun";
 import { BadRequestError, NotFoundError, UserForbiddenError } from "./errors";
+import { Buffer } from "buffer";
 
 type Thumbnail = {
   data: ArrayBuffer;
@@ -57,7 +58,10 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
     throw new BadRequestError("File size must be below 10mb")
   }
   const media_type = img_data.type
-  let buf = await img_data.arrayBuffer()
+  let array_buf = await img_data.arrayBuffer()
+  let buf = Buffer.from(array_buf)
+  let img_buf_string = buf.toString("base64")
+  let data_url = `data:${media_type};base64,${img_buf_string}`
   const video_meta = getVideo(cfg.db, videoId)
   if (!video_meta) {
     throw new BadRequestError("Unable to locate video meta data")
@@ -65,14 +69,8 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   if (video_meta.userID !== userID) {
     throw new UserForbiddenError("Video does not belong to user")
   }
-  videoThumbnails.set(video_meta.id, {
-    data: buf,
-    mediaType: media_type,
-  })
-  const thumbnailURL = `http://localhost:${cfg.port}/api/thumbnails/${videoId}`
-  video_meta.thumbnailURL = thumbnailURL
+  video_meta.thumbnailURL = data_url
   updateVideo(cfg.db, video_meta)
-  console.log(video_meta.thumbnailURL)
 
   return respondWithJSON(200, video_meta);
 }
