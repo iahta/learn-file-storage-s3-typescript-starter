@@ -8,6 +8,7 @@ import { Buffer } from "buffer";
 import { getImageType, getAssetDiskPath, getAssetURL} from "./assets";
 import path from "path";
 import { url } from "inspector";
+import { randomBytes } from "crypto";
 
 
 type Thumbnail = {
@@ -76,14 +77,15 @@ export async function handlerUploadThumbnail(cfg: ApiConfig, req: BunRequest) {
   }
 
   const file_ext = getImageType(media_type);
-  const filename = `${videoId}${file_ext}`;
+  const filename = randomBytes(32).toString("base64url")
+  const path_name = `${filename}${file_ext}`;
 
-  const assetDiskPath = getAssetDiskPath(cfg, filename);
+  const assetDiskPath = getAssetDiskPath(cfg, path_name);
   await Bun.write(assetDiskPath, file);
 
-  const urlPath = getAssetURL(cfg, filename)
+  const urlPath = getAssetURL(cfg, path_name)
   video_meta.thumbnailURL = urlPath
-  
+
   updateVideo(cfg.db, video_meta)
 
   return respondWithJSON(200, video_meta);
