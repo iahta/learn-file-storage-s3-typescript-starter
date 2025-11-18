@@ -6,6 +6,7 @@ import { getBearerToken, validateJWT } from "../auth";
 import { getVideo, updateVideo } from "../db/videos";
 import { getVideoType, getVideoTempPath, uploadVideoToS3 } from "./assets";
 import { rm } from "fs/promises";
+import { dbVideoToSignedVideo } from "./video-meta";
 
 const MAX_UPLOAD_SIZE = (1 << 30)
 
@@ -14,10 +15,10 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
     if (!videoId) {
       throw new BadRequestError("Invalid video ID");
     }
-
+  
   const token = getBearerToken(req.headers);
   const userID = validateJWT(token, cfg.jwtSecret);
-
+  
   const video_meta = getVideo(cfg.db, videoId)
     if (!video_meta) {
       throw new BadRequestError("Unable to locate video meta data")
@@ -28,7 +29,7 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
 
   const formData = await req.formData()
   const video_file = formData.get("video")
-  if (!(video_file !instanceof File)) {
+  if (!(video_file instanceof File)) {
     throw new BadRequestError("Invalid file")
   }
   if (video_file.size > MAX_UPLOAD_SIZE) {
@@ -49,15 +50,17 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   let key = `${aspectRatio}/${videoId}${file_ext}`;
   await uploadVideoToS3(cfg, key, processedVideo, "video/mp4");
 
-  const videoURL = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${key}`;
-  video_meta.videoURL = videoURL;
+  //const videoURL = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${key}`;
+  video_meta.videoURL = key;
   updateVideo(cfg.db, video_meta)
+  const signedVideo = await dbVideoToSignedVideo(cfg, video_meta)
+  
 
   await Promise.all([rm(tempFilePath, { force: true})]);
   await Promise.all([rm(processedVideo, { force: true})]);
 
 
-  return respondWithJSON(200, null);
+  return respondWithJSON(200, signedVideo);
 }
 
 async function getVideoAspectRatio(filePath: string) {
