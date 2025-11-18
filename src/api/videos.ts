@@ -6,7 +6,6 @@ import { getBearerToken, validateJWT } from "../auth";
 import { getVideo, updateVideo } from "../db/videos";
 import { getVideoType, getVideoTempPath, uploadVideoToS3 } from "./assets";
 import { rm } from "fs/promises";
-import { dbVideoToSignedVideo } from "./video-meta";
 
 const MAX_UPLOAD_SIZE = (1 << 30)
 
@@ -51,16 +50,16 @@ export async function handlerUploadVideo(cfg: ApiConfig, req: BunRequest) {
   await uploadVideoToS3(cfg, key, processedVideo, "video/mp4");
 
   //const videoURL = `https://${cfg.s3Bucket}.s3.${cfg.s3Region}.amazonaws.com/${key}`;
-  video_meta.videoURL = key;
+  const videoURL = `https://${cfg.s3CfDistribution}/${key}`
+  video_meta.videoURL = videoURL;
   updateVideo(cfg.db, video_meta)
-  const signedVideo = await dbVideoToSignedVideo(cfg, video_meta)
   
 
   await Promise.all([rm(tempFilePath, { force: true})]);
   await Promise.all([rm(processedVideo, { force: true})]);
 
 
-  return respondWithJSON(200, signedVideo);
+  return respondWithJSON(200, null);
 }
 
 async function getVideoAspectRatio(filePath: string) {

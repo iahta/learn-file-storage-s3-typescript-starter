@@ -55,9 +55,8 @@ export async function handlerVideoGet(cfg: ApiConfig, req: BunRequest) {
   if (!video) {
     throw new NotFoundError("Couldn't find video");
   }
-  const signedVideo = await dbVideoToSignedVideo(cfg, video)
 
-  return respondWithJSON(200, signedVideo);
+  return respondWithJSON(200, video);
 }
 
 export async function handlerVideosRetrieve(cfg: ApiConfig, req: Request) {
@@ -65,27 +64,8 @@ export async function handlerVideosRetrieve(cfg: ApiConfig, req: Request) {
   const userID = validateJWT(token, cfg.jwtSecret);
 
   const videos = getVideos(cfg.db, userID);
-  let signedVideos = []
-  for (const video of videos) {
-    signedVideos.push(await dbVideoToSignedVideo(cfg, video))
-  }
 
-  return respondWithJSON(200, signedVideos);
+
+  return respondWithJSON(200, videos);
 }
 
-export async function generatePresignedURL(cfg: ApiConfig, key: string, expireTime: number) {
-  const upload = cfg.s3Client.presign(key, {
-    expiresIn: expireTime,
-    method: "GET"
-  })
-  return upload
-}
-
-export async function dbVideoToSignedVideo(cfg: ApiConfig, video: Video) {
-  if (!video.videoURL) {
-    return video
-  }
-  const signedVideo = await generatePresignedURL(cfg, video.videoURL, 3600);
-  video.videoURL = signedVideo
-  return video
-}
